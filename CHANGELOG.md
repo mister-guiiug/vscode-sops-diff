@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Compare Selected (SOPS, decrypted)**: a second Explorer command that runs `sops -d` with your keys and diffs the real values, for when masking cannot answer whether two secrets match. Decryption is all-or-nothing across the pair, and falls back to the masked comparison — with a notification saying why — when a file will not decrypt. The plain command is unchanged and still never decrypts.
+- Setting: `sopsDiff.sopsPath`.
+
 ## 0.1.0
 
 Initial release.

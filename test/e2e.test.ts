@@ -1,20 +1,28 @@
 import { join } from 'node:path'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NormalizedContentProvider, buildDiffUri } from '../src/contentProvider'
 import { resolveRulesForFile } from '../src/discovery'
 import { loadFile } from '../src/document'
-import { FIXTURES } from './helpers'
-import { Uri, setSettings, setWorkspaceRoot } from './vscode-stub'
+import { activate } from '../src/extension'
+import { clearDecryptCache } from '../src/sops/decrypt'
+import { fixture, FIXTURES } from './helpers'
+import { Uri, executedCommands, resetStub, runCommand, setSettings, setWorkspaceRoot, shownMessages } from './vscode-stub'
+
+const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn() }))
+vi.mock('node:child_process', () => ({ execFile: execFileMock }))
 
 const clearFile = () => Uri.file(join(FIXTURES, 'secrets', 'values.clear.yaml'))
 const encryptedFile = () => Uri.file(join(FIXTURES, 'secrets', 'values.enc.yaml'))
 
 async function contentOf(uri: Uri, maskClearValues = true): Promise<string> {
   const provider = new NormalizedContentProvider()
-  return provider.provideTextDocumentContent(buildDiffUri(uri as never, maskClearValues) as never)
+  return provider.provideTextDocumentContent(buildDiffUri(uri as never, { maskClearValues, decrypt: false }) as never)
 }
 
 beforeEach(() => {
+  resetStub()
+  clearDecryptCache()
+  execFileMock.mockReset()
   setWorkspaceRoot(FIXTURES)
   setSettings({})
 })
@@ -102,5 +110,86 @@ describe('the diff a user actually gets', () => {
     const missing = await contentOf(Uri.file(join(FIXTURES, 'does-not-exist.yaml')))
 
     expect(missing).toMatch(/could not normalize/i)
+  })
+})
+
+/**
+ * Drives the command the way the Explorer context menu does, then renders whatever
+ * URIs it handed to `vscode.diff`.
+ */
+async function compareViaCommand(command: string, left: Uri, right: Uri) {
+  activate({ subscriptions: [] } as never)
+  await runCommand(command, undefined, [left, right])
+
+  const diff = executedCommands().find((call) => call.command === 'vscode.diff')
+  if (!diff) throw new Error('the command never opened a diff')
+
+  const provider = new NormalizedContentProvider()
+  const [leftUri, rightUri, title] = diff.args as [Uri, Uri, string]
+  return {
+    title,
+    left: await provider.provideTextDocumentContent(leftUri as never),
+    right: await provider.provideTextDocumentContent(rightUri as never),
+  }
+}
+
+describe('Compare Selected (SOPS, decrypted)', () => {
+  it('compares the real values once the pair decrypts', async () => {
+    // values.enc.yaml is, by construction, the encryption of values.clear.yaml.
+    execFileMock.mockImplementation((_command, _args, _options, done) =>
+      done(null, fixture('secrets/values.clear.yaml'), ''),
+    )
+
+    const { title, left, right } = await compareViaCommand('sopsDiff.compareSelectedDecrypted', clearFile(), encryptedFile())
+
+    expect(title).toContain('SOPS decrypted')
+    expect(left).toBe(right)
+    // The point of the feature: the secret itself is compared, not masked away.
+    expect(right).toContain('password: hunter2')
+    expect(right).not.toContain('ENC[')
+  })
+
+  it('shows a real difference between the two secrets', async () => {
+    execFileMock.mockImplementation((_command, _args, _options, done) =>
+      done(null, fixture('secrets/values.clear.yaml').replace('hunter2', 'correct-horse'), ''),
+    )
+
+    const { left, right } = await compareViaCommand('sopsDiff.compareSelectedDecrypted', clearFile(), encryptedFile())
+
+    expect(left).toContain('password: hunter2')
+    expect(right).toContain('password: correct-horse')
+  })
+
+  it('falls back to the masked comparison when sops refuses, and says why', async () => {
+    execFileMock.mockImplementation((_command, _args, _options, done) =>
+      done(Object.assign(new Error('Command failed'), { code: 1 }), '', 'Failed to get the data key'),
+    )
+
+    const { title, left, right } = await compareViaCommand('sopsDiff.compareSelectedDecrypted', clearFile(), encryptedFile())
+
+    expect(title).toContain('SOPS normalized')
+    expect(left).toBe(right)
+    expect(left).toContain('password: ENC[***]')
+    expect(shownMessages().some((m) => m.level === 'warning' && /Failed to get the data key/.test(m.text))).toBe(true)
+  })
+
+  it('decrypts each file once, not once per read', async () => {
+    execFileMock.mockImplementation((_command, _args, _options, done) =>
+      done(null, fixture('secrets/values.clear.yaml'), ''),
+    )
+
+    await compareViaCommand('sopsDiff.compareSelectedDecrypted', clearFile(), encryptedFile())
+
+    // Only values.enc.yaml is encrypted, and the command plus the provider both
+    // need its plaintext.
+    expect(execFileMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves the plain command masking, so the two entries stay distinct', async () => {
+    const { title, left } = await compareViaCommand('sopsDiff.compareSelected', clearFile(), encryptedFile())
+
+    expect(title).toContain('SOPS normalized')
+    expect(left).toContain('password: ENC[***]')
+    expect(execFileMock).not.toHaveBeenCalled()
   })
 })

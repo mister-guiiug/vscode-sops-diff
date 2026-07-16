@@ -43,6 +43,22 @@ host: db.staging           →  host: db.staging       # ⇒ difference
 
 The two documents open in the normal diff editor, read-only. The original files are never touched.
 
+## Comparing the real values
+
+Masking answers *is the structure the same?* but never *are the secrets the same?* — ciphertext cannot answer that, since encrypting the same secret twice yields different bytes. When you need the real answer, **Compare Selected (SOPS, decrypted)** runs `sops -d` with your keys and diffs the plaintext.
+
+```yaml
+password: hunter2          →  password: hunter2
+password: ENC[AES256…]     →  password: correct-horse    # ⇒ a difference you can see
+```
+
+Worth knowing:
+
+- **Secrets end up on your screen**, and in VS Code's memory for as long as the diff is open. That is why it is a separate command rather than the default — the plain compare never decrypts.
+- It needs the `sops` binary on `PATH` (or `sopsDiff.sopsPath`) and whatever keys the file was encrypted to. The extension never writes plaintext to disk and never puts it in the diff URI; it holds it in memory only between deciding the pair is decryptable and rendering it.
+- **Decryption is all-or-nothing across the pair.** If either file will not decrypt, both sides fall back to the masked comparison and a notification says why — real values facing placeholders would report every secret as a difference.
+- `sops` reads the file **from disk**, so unsaved edits to an encrypted file are not reflected.
+
 ## `.sops.yaml` support
 
 The extension walks up from each file to the workspace root looking for `.sops.yaml` (or `.sops.yml`), then picks the creation rule the way SOPS does: **the first rule whose `path_regex` matches the file path relative to the config's directory**, with a rule that has no `path_regex` acting as a catch-all.
@@ -72,7 +88,8 @@ YAML (including multi-document), JSON, `.env`, INI, and SOPS' binary envelope. A
 
 | Command | Where |
 |---|---|
-| **Compare Selected (SOPS)** | right-click with exactly two files selected |
+| **Compare Selected (SOPS)** | right-click with exactly two files selected — masks, never decrypts |
+| **Compare Selected (SOPS, decrypted)** | same, but runs `sops -d` first and compares the real values |
 | **Select for Compare (SOPS)** / **Compare with Selected (SOPS)** | right-click, two steps, mirroring the built-in pair |
 
 ## Settings
@@ -83,13 +100,15 @@ YAML (including multi-document), JSON, `.env`, INI, and SOPS' binary envelope. A
 | `sopsDiff.stripMetadata` | `true` | drop the SOPS metadata block |
 | `sopsDiff.maskClearValues` | `true` | mask cleartext values the rules mark as encrypted; only ever applied when one of the two files is encrypted |
 | `sopsDiff.compareComments` | `false` | keep comments in the diff |
+| `sopsDiff.sopsPath` | `sops` | the binary used by the decrypted comparison |
 
 ## Limitations
 
-- **Ciphertext is opaque.** Two files whose secrets differ but whose structure matches will show as identical. The extension tells you the *comparable* parts agree — it cannot tell you the secrets do.
+- **Ciphertext is opaque.** In the masked comparison, two files whose secrets differ but whose structure matches show as identical: it tells you the *comparable* parts agree, not that the secrets do. Use the decrypted comparison for that.
 - **Formatting is a difference.** Normalization edits values in place and does not reformat. SOPS re-emits YAML with 4-space indentation, so a hand-written 2-space file compared against a SOPS file will differ on indentation. Compare two SOPS files, or match the indentation.
 - `encrypted_comment_regex` / `unencrypted_comment_regex` are not read; comments are governed by `sopsDiff.compareComments` instead.
 - Files over 5 MB and binary files are rejected.
+- On Windows, `sops` installed as a `.cmd`/`.bat` shim cannot be launched (Node refuses to spawn one without a shell, and a shell would make the file path injectable). Point `sopsDiff.sopsPath` at the real executable.
 
 ## Development
 

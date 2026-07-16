@@ -37,6 +37,11 @@
         "category": "SOPS Diff"
       },
       {
+        "command": "sopsDiff.compareSelectedDecrypted",
+        "title": "Compare Selected (SOPS, decrypted)",
+        "category": "SOPS Diff"
+      },
+      {
         "command": "sopsDiff.selectForCompare",
         "title": "Select for Compare (SOPS)",
         "category": "SOPS Diff"
@@ -55,19 +60,28 @@
           "group": "3_compare@10"
         },
         {
+          "command": "sopsDiff.compareSelectedDecrypted",
+          "when": "listMultiSelection && !explorerResourceIsFolder",
+          "group": "3_compare@11"
+        },
+        {
           "command": "sopsDiff.selectForCompare",
           "when": "!listMultiSelection && !explorerResourceIsFolder",
-          "group": "3_compare@11"
+          "group": "3_compare@12"
         },
         {
           "command": "sopsDiff.compareWithSelected",
           "when": "!listMultiSelection && !explorerResourceIsFolder && sopsDiff.hasSelectionForCompare",
-          "group": "3_compare@12"
+          "group": "3_compare@13"
         }
       ],
       "commandPalette": [
         {
           "command": "sopsDiff.compareSelected",
+          "when": "false"
+        },
+        {
+          "command": "sopsDiff.compareSelectedDecrypted",
           "when": "false"
         },
         {
@@ -97,6 +111,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Mask cleartext values whose key path the `.sops.yaml` creation rules mark as encrypted. This is what makes a cleartext file line up with its encrypted counterpart. Only applied when at least one of the two files is SOPS-encrypted."
+        },
+        "sopsDiff.sopsPath": {
+          "type": "string",
+          "default": "sops",
+          "markdownDescription": "The `sops` binary used by **Compare Selected (SOPS, decrypted)**. Give a full path if it is not on `PATH`, or if it is installed as a `.cmd`/`.bat` shim, which Node cannot launch directly."
         },
         "sopsDiff.compareComments": {
           "type": "boolean",

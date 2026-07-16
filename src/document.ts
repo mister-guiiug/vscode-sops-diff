@@ -1,6 +1,7 @@
 import * as vscode from 'vscode'
 import { resolveRulesForFile, type RuleResolution } from './discovery'
 import { basenameOf, detectFormat, detectSops, normalize, type Format } from './normalize'
+import { decryptFile } from './sops/decrypt'
 import type { NormalizeResult } from './types'
 
 const MAX_BYTES = 5 * 1024 * 1024
@@ -26,27 +27,53 @@ export async function loadFile(uri: vscode.Uri): Promise<LoadedFile> {
 
 export interface NormalizedFile extends NormalizeResult {
   file: LoadedFile
+  decrypted: boolean
   configPath?: string
   ruleDescription: string
   warnings: string[]
 }
 
-export async function normalizeFile(uri: vscode.Uri, maskClearValues: boolean): Promise<NormalizedFile> {
+export interface NormalizeRequest {
+  maskClearValues: boolean
+  /** Both sides of a pair agree on this, so real values never face placeholders. */
+  decrypt: boolean
+}
+
+export function sopsPathFor(uri: vscode.Uri): string {
+  return vscode.workspace.getConfiguration('sopsDiff', uri).get('sopsPath', 'sops')
+}
+
+export async function normalizeFile(uri: vscode.Uri, request: NormalizeRequest): Promise<NormalizedFile> {
   const file = await loadFile(uri)
-  const resolution = await resolveRulesForFile(uri)
   const config = vscode.workspace.getConfiguration('sopsDiff', uri)
 
-  const result = normalize(file.text, file.format, {
+  let text = file.text
+  let format = file.format
+  let decrypted = false
+
+  if (request.decrypt && file.encrypted) {
+    const outcome = await decryptFile(uri.fsPath, sopsPathFor(uri))
+    if (!outcome.ok) throw new Error(`Could not decrypt "${file.name}": ${outcome.reason}`)
+    text = outcome.text
+    // A binary-mode file is stored as a JSON envelope but decrypts to its original
+    // format, so the format has to be read again from the plaintext.
+    format = detectFormat(uri.path, text)
+    decrypted = true
+  }
+
+  const resolution = await resolveRulesForFile(uri)
+  const result = normalize(text, format, {
     rules: resolution.rules,
     placeholder: config.get('encryptedPlaceholder', 'ENC[***]'),
     stripMetadata: config.get('stripMetadata', true),
-    maskClearValues,
+    maskClearValues: request.maskClearValues,
     compareComments: config.get('compareComments', false),
   })
 
   return {
     ...result,
     file,
+    decrypted,
     configPath: resolution.configPath,
     ruleDescription: describeRules(resolution),
     warnings: resolution.warnings,

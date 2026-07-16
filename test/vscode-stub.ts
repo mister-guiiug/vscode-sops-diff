@@ -65,6 +65,11 @@ export class EventEmitter<T> {
 let workspaceRoot: string | undefined
 let settings: Record<string, unknown> = {}
 
+type CommandHandler = (...args: never[]) => unknown
+const handlers = new Map<string, CommandHandler>()
+const executed: { command: string; args: unknown[] }[] = []
+const messages: { level: 'error' | 'warning'; text: string }[] = []
+
 /** Bound the `.sops.yaml` walk-up the way an open folder would. */
 export function setWorkspaceRoot(root: string | undefined): void {
   workspaceRoot = root
@@ -72,6 +77,29 @@ export function setWorkspaceRoot(root: string | undefined): void {
 
 export function setSettings(values: Record<string, unknown>): void {
   settings = values
+}
+
+/** Invoke a command through the handler the extension actually registered. */
+export function runCommand(id: string, ...args: unknown[]): unknown {
+  const handler = handlers.get(id)
+  if (!handler) throw new Error(`no command registered as "${id}"`)
+  return (handler as (...a: unknown[]) => unknown)(...args)
+}
+
+export function executedCommands(): readonly { command: string; args: unknown[] }[] {
+  return executed
+}
+
+export function shownMessages(): readonly { level: 'error' | 'warning'; text: string }[] {
+  return messages
+}
+
+export function resetStub(): void {
+  handlers.clear()
+  executed.length = 0
+  messages.length = 0
+  settings = {}
+  workspaceRoot = undefined
 }
 
 export const workspace = {
@@ -106,12 +134,24 @@ export const workspace = {
 
 export const window = {
   createOutputChannel: () => ({ appendLine: () => {}, show: () => {}, dispose: () => {} }),
-  showErrorMessage: async () => undefined,
-  showWarningMessage: () => undefined,
+  showErrorMessage: async (text: string) => {
+    messages.push({ level: 'error', text })
+    return undefined
+  },
+  showWarningMessage: async (text: string) => {
+    messages.push({ level: 'warning', text })
+    return undefined
+  },
   setStatusBarMessage: () => undefined,
 }
 
 export const commands = {
-  registerCommand: () => ({ dispose: () => {} }),
-  executeCommand: async () => undefined,
+  registerCommand: (id: string, handler: CommandHandler) => {
+    handlers.set(id, handler)
+    return { dispose: () => handlers.delete(id) }
+  },
+  executeCommand: async (command: string, ...args: unknown[]) => {
+    executed.push({ command, args })
+    return undefined
+  },
 }
