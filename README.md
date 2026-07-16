@@ -98,6 +98,7 @@ npm install
 npm test          # vitest — pure logic plus an end-to-end pass over test/fixtures
 npm run typecheck
 npm run build     # esbuild bundle into dist/
+npm run smoke     # load and activate the built bundle against a stub vscode module
 ```
 
 `F5` launches an extension host on `test/fixtures`, which holds a `.sops.yaml` and a cleartext/encrypted pair to try the command on.
