@@ -1,0 +1,3 @@
+# The fixtures are compared byte for byte by the test suite, so the working tree
+# must not depend on the platform's autocrlf setting.
+* text=auto eol=lf

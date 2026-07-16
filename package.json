@@ -1,0 +1,130 @@
+{
+  "name": "vscode-sops-diff",
+  "displayName": "SOPS Diff",
+  "description": "Compare a SOPS-encrypted file against another file without decrypting it, honouring .sops.yaml creation rules.",
+  "version": "0.1.0",
+  "publisher": "guiiug",
+  "license": "MIT",
+  "author": "GuiiuG",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mister-guiiug/vscode-sops-diff.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mister-guiiug/vscode-sops-diff/issues"
+  },
+  "homepage": "https://github.com/mister-guiiug/vscode-sops-diff#readme",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "sops",
+    "diff",
+    "compare",
+    "secrets",
+    "encryption"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "sopsDiff.compareSelected",
+        "title": "Compare Selected (SOPS)",
+        "category": "SOPS Diff"
+      },
+      {
+        "command": "sopsDiff.selectForCompare",
+        "title": "Select for Compare (SOPS)",
+        "category": "SOPS Diff"
+      },
+      {
+        "command": "sopsDiff.compareWithSelected",
+        "title": "Compare with Selected (SOPS)",
+        "category": "SOPS Diff"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "sopsDiff.compareSelected",
+          "when": "listMultiSelection && !explorerResourceIsFolder",
+          "group": "3_compare@10"
+        },
+        {
+          "command": "sopsDiff.selectForCompare",
+          "when": "!listMultiSelection && !explorerResourceIsFolder",
+          "group": "3_compare@11"
+        },
+        {
+          "command": "sopsDiff.compareWithSelected",
+          "when": "!listMultiSelection && !explorerResourceIsFolder && sopsDiff.hasSelectionForCompare",
+          "group": "3_compare@12"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "sopsDiff.compareSelected",
+          "when": "false"
+        },
+        {
+          "command": "sopsDiff.selectForCompare",
+          "when": "false"
+        },
+        {
+          "command": "sopsDiff.compareWithSelected",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SOPS Diff",
+      "properties": {
+        "sopsDiff.encryptedPlaceholder": {
+          "type": "string",
+          "default": "ENC[***]",
+          "markdownDescription": "Text that replaces every encrypted (or would-be-encrypted) value on both sides of the diff. Two values are reported as identical when everything around the placeholder — the line prefix — matches."
+        },
+        "sopsDiff.stripMetadata": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Remove the SOPS metadata block (`sops:` key, `sops_*` entries, `[sops]` section) before diffing. It only describes the encryption itself and is never comparable."
+        },
+        "sopsDiff.maskClearValues": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Mask cleartext values whose key path the `.sops.yaml` creation rules mark as encrypted. This is what makes a cleartext file line up with its encrypted counterpart. Only applied when at least one of the two files is SOPS-encrypted."
+        },
+        "sopsDiff.compareComments": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Keep comments in the diff. SOPS encrypts comments by default, so leaving this off (comments removed from both sides) usually avoids a wall of false differences."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.mjs --production",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1",
+    "yaml": "^2.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.2",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.6"
+  }
+}
