@@ -15,7 +15,8 @@
   },
   "homepage": "https://github.com/mister-guiiug/vscode-sops-diff#readme",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.90.0",
+    "node": ">=22.12"
   },
   "categories": [
     "Other"
@@ -143,8 +144,9 @@
     "@types/node": "^22.13.5",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.2.2",
-    "esbuild": "^0.25.0",
-    "typescript": "^5.7.3",
-    "vitest": "^3.0.6"
+    "esbuild": "^0.28.0",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
   }
 }
