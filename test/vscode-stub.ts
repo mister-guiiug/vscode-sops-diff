@@ -1,6 +1,6 @@
 /**
  * The slice of the VS Code API the extension actually touches, backed by the real
- * filesystem. `vitest.config.ts` aliases `vscode` here so the glue between the
+ * filesystem. `vitest.config.mts` aliases `vscode` here so the glue between the
  * commands, the config discovery and the normalisers can be tested outside an
  * extension host.
  */
